@@ -73,7 +73,86 @@ Whisper and Cloud, then aligns the three transcripts word by word (progressive
 LCS merge in [WordDiff.swift](transcriber/transcriber/Utils/WordDiff.swift)) and
 highlights every position where they disagree.
 
+## Verifying
+
+### Word diff
+
+```bash
+./transcriber/Tools/verify-worddiff.sh
+```
+
+Compiles `WordDiff` standalone against the macOS toolchain and runs the
+alignment cases. No simulator, no test target.
+
+### Engines
+
+The simulator can't feed the microphone, so DEBUG builds take a `--selftest`
+flag that runs a bundled speech sample (`Resources/sample.wav`) through one
+engine and prints the transcript, stage timings, confidence, and agreement
+against the known text:
+
+```bash
+xcrun simctl launch --console-pty booted com.gotham.transcriber --selftest whisper
+
+# Cloud/Auto can be pointed at a backend without going through Settings:
+xcrun simctl launch --console-pty booted com.gotham.transcriber --selftest cloud \
+  --backend http://localhost:8000 --api-key "$API_KEY"
+```
+
+Where each engine stands:
+
+| Engine | Simulator | Notes |
+|---|---|---|
+| Whisper | passes | 100% agreement with the sample; `download 85s · load 5s · transcribe 3s` on first run, ~3s after |
+| Cloud | passes | Verified against a local container: upload, multipart, auth, and error mapping |
+| Apple | device only | `SpeechTranscriber.isAvailable` is false in the simulator; the app reports that rather than failing deeper |
+| Auto | device only | Its local half is the Apple engine |
+
+### Backend
+
+```bash
+cd transcriber_backend && .venv/bin/python -m pytest tests -q
+```
+
+The container was also checked offline, which is what proves the Dockerfile's
+baked-in weights work on a cold Cloud Run start:
+
+```bash
+docker build -t transcriber-backend:local .
+docker run --rm --network none -v "$PWD/sample.wav:/tmp/sample.wav:ro" \
+  transcriber-backend:local \
+  python -c "from app.asr import transcribe_file; print(transcribe_file('/tmp/sample.wav').text)"
+```
+
+## Manual test pass
+
+On a real device (Apple and Auto need one):
+
+1. **Settings** — leave the backend blank first. Apple, Whisper and Auto should
+   all still work; Cloud should say it needs configuring.
+2. **Apple** — record a few sentences. First run downloads the locale model with
+   a progress bar; later runs should be near-instant. Turn on airplane mode and
+   repeat: it must still work.
+3. **Whisper** — same, but expect a ~480 MB download on first use. Switch to
+   `base` in Settings and confirm the next run downloads the smaller model.
+4. **Cloud** — fill in the backend URL and key, tap *Test connection*, then
+   record. You should get both a raw and a polished transcript, plus a title and
+   summary.
+5. **Auto** — record while online: the Apple transcript should appear first and
+   then be replaced by the polished version. Repeat in airplane mode and confirm
+   it keeps the local result instead of erroring.
+6. **Failure handling** — record with Cloud while offline. The recording should
+   be held, with the choice to retry, save the audio without a transcript, or
+   discard.
+7. **Compare** — open a note, tap *Run all engines*, and check the three
+   transcripts, the highlighted disagreements, and the metrics table.
+
 ## POC scope
 
 No accounts, no sync, no sharing. Minimal styling. One smoke test per backend
-endpoint. Model downloads are on first use, not bundled.
+endpoint. Model downloads happen on first use rather than being bundled — except
+the backend's ASR weights, which are baked into the container image so Cloud Run
+cold starts don't pay for them.
+
+`Resources/sample.wav` (200 KB) ships in every build; only the DEBUG-only
+self-test reads it.
