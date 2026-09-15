@@ -12,7 +12,6 @@ struct RecordView: View {
     @State private var engine: TranscriptionEngine = .apple
     @State private var readiness: EngineReadiness?
     @State private var permissionDenied = false
-    @State private var savedNoteID: UUID?
 
     var body: some View {
         NavigationStack {
@@ -222,7 +221,6 @@ struct RecordView: View {
         } catch {
             Log.store.error("save failed: \(error.localizedDescription, privacy: .public)")
         }
-        savedNoteID = note.id
         dismiss()
     }
 }

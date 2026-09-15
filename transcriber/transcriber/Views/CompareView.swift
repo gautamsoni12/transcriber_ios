@@ -9,6 +9,11 @@ struct CompareView: View {
     @State private var states: [TranscriptionEngine: CompareState] = [:]
     @State private var isRunning = false
 
+    /// Alignment is O(words²); computing it in `body` would re-run it once per
+    /// section per render. Recomputed only when the set of transcripts changes.
+    @State private var columns: [WordDiff.Column] = []
+    @State private var availableEngines: [TranscriptionEngine] = []
+
     private let engines = TranscriptionEngine.comparable
 
     var body: some View {
@@ -27,6 +32,7 @@ struct CompareView: View {
         }
         .navigationTitle("Compare engines")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { rebuildAlignment() }
     }
 
     // MARK: - Sections
@@ -159,20 +165,18 @@ struct CompareView: View {
 
     // MARK: - Data
 
-    /// Engines that have a transcript to show, in a stable order.
-    private var availableEngines: [TranscriptionEngine] {
-        engines.filter { transcriptRun(for: $0) != nil }
-    }
-
     private func transcriptRun(for engine: TranscriptionEngine) -> EngineRun? {
         if case .done(let run) = states[engine] { return run }
         return note.run(for: engine)
     }
 
-    private var columns: [WordDiff.Column] {
-        let transcripts = availableEngines.compactMap { transcriptRun(for: $0)?.bestTranscript }
-        guard transcripts.count >= 2 else { return [] }
-        return WordDiff.align(transcripts: transcripts)
+    /// Recomputes the word alignment. Called once after each engine finishes,
+    /// never from `body`.
+    private func rebuildAlignment() {
+        let present = engines.filter { transcriptRun(for: $0) != nil }
+        let transcripts = present.compactMap { transcriptRun(for: $0)?.bestTranscript }
+        availableEngines = present
+        columns = transcripts.count >= 2 ? WordDiff.align(transcripts: transcripts) : []
     }
 
     /// Transcript with disagreements highlighted, and gaps marked where this
@@ -225,6 +229,7 @@ struct CompareView: View {
                 let outcome = try await service.transcribe(audioURL: audioURL, progress: sink)
                 let run = replaceRun(with: outcome, engine: engine)
                 states[engine] = .done(run)
+                rebuildAlignment()
             } catch {
                 Log.store.error("compare \(engine.rawValue, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
                 states[engine] = .failed(error.localizedDescription)

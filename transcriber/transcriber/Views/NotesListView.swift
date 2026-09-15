@@ -46,6 +46,8 @@ struct NotesListView: View {
                     } label: {
                         Label("Record", systemImage: "mic.circle.fill")
                             .font(.title3)
+                            // The bottom bar collapses to icon-only otherwise.
+                            .labelStyle(.titleAndIcon)
                     }
                     .buttonStyle(.borderedProminent)
                 }

@@ -52,9 +52,41 @@ nonisolated enum WordDiff {
             keys = mergedKeys
         }
 
-        return columns.enumerated().map { offset, tokens in
-            Column(id: offset, tokens: tokens, agrees: allAgree(tokens))
+        return coalesceSubstitutions(columns)
+    }
+
+    /// LCS models a substitution as a delete followed by an insert, which shows
+    /// up in the compare view as two half-empty rows ("friday | — | friday",
+    /// then "— | tuesday | —"). Collapsing each run of disagreeing columns back
+    /// into aligned rows turns that into the one row a reader wants.
+    private static func coalesceSubstitutions(_ columns: [[String?]]) -> [Column] {
+        guard let width = columns.first?.count else { return [] }
+        var result: [Column] = []
+        var index = 0
+
+        while index < columns.count {
+            if allAgree(columns[index]) {
+                result.append(Column(id: result.count, tokens: columns[index], agrees: true))
+                index += 1
+                continue
+            }
+
+            var runEnd = index
+            while runEnd < columns.count, !allAgree(columns[runEnd]) { runEnd += 1 }
+            let run = columns[index..<runEnd]
+
+            // Each source's words from this run, compacted and kept in order.
+            let perSource = (0..<width).map { source in
+                run.compactMap { $0[source] }
+            }
+            let height = perSource.map(\.count).max() ?? 0
+            for row in 0..<height {
+                let tokens = perSource.map { words in row < words.count ? words[row] : nil }
+                result.append(Column(id: result.count, tokens: tokens, agrees: allAgree(tokens)))
+            }
+            index = runEnd
         }
+        return result
     }
 
     /// Convenience: align raw transcript strings.

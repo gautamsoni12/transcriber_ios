@@ -44,7 +44,9 @@ nonisolated struct CloudTranscriptionService: TranscriptionService {
         // upload/network overhead.
         let networkMs = max(0, timeline.totalMilliseconds - response.latencyMs)
         var stages = timeline.snapshotStages()
-        stages.append(StageTiming(name: "server", milliseconds: response.latencyMs))
+        for stage in response.stages ?? [] {
+            stages.append(StageTiming(name: "server.\(stage.name)", milliseconds: stage.milliseconds))
+        }
         stages.append(StageTiming(name: "network", milliseconds: networkMs))
 
         let raw = response.rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -59,7 +61,7 @@ nonisolated struct CloudTranscriptionService: TranscriptionService {
             polishedTranscript: response.polishedTranscript,
             title: response.title,
             summary: response.summary,
-            confidence: nil,
+            confidence: response.asrConfidence,
             latencyMs: timeline.totalMilliseconds,
             stages: stages
         )

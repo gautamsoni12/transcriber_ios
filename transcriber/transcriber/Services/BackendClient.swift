@@ -101,6 +101,15 @@ nonisolated struct BackendTranscript: Decodable, Sendable {
     let summary: String
     let model: String
     let latencyMs: Int
+    /// faster-whisper's segment confidence; `nil` from `/enhance`, which runs no ASR.
+    let asrConfidence: Double?
+    /// Server-side stage breakdown, so the client can subtract network time.
+    let stages: [BackendStage]?
+}
+
+nonisolated struct BackendStage: Decodable, Sendable {
+    let name: String
+    let milliseconds: Int
 }
 
 private nonisolated struct HealthResponse: Decodable, Sendable {
