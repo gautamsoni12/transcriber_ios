@@ -21,6 +21,9 @@ struct transcriberApp: App {
     var body: some Scene {
         WindowGroup {
             NotesListView()
+                #if DEBUG
+                .task { _ = SelfTest.runIfRequested() }
+                #endif
         }
         .modelContainer(container)
     }

@@ -86,10 +86,24 @@ nonisolated struct BackendClient: Sendable {
     private static func validate(response: URLResponse, data: Data) throws {
         guard let http = response as? HTTPURLResponse else { return }
         guard (200..<300).contains(http.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "no body"
+            let message = errorMessage(from: data)
             Log.net.error("backend \(http.statusCode): \(message, privacy: .public)")
             throw TranscriptionError.backend(status: http.statusCode, message: String(message.prefix(300)))
         }
+    }
+
+    /// FastAPI puts the useful part in `{"detail": "…"}`; showing the raw JSON
+    /// to the user is just noise.
+    private static func errorMessage(from data: Data) -> String {
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let detail = object["detail"] as? String { return detail }
+            // Validation errors come back as a list of objects.
+            if let details = object["detail"] as? [[String: Any]] {
+                let messages = details.compactMap { $0["msg"] as? String }
+                if !messages.isEmpty { return messages.joined(separator: "; ") }
+            }
+        }
+        return String(data: data, encoding: .utf8) ?? "no body"
     }
 }
 

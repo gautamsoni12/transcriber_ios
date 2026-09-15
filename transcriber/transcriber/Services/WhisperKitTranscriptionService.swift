@@ -111,8 +111,8 @@ actor WhisperKitTranscriptionService: TranscriptionService {
     ) async throws -> TranscriptionOutcome {
         let timeline = StageTimeline(label: "whisper", logger: Log.whisper)
 
+        // prepare() records its own download/load stages on the timeline.
         try await prepare(progress: progress, timeline: timeline)
-        timeline.mark("model ready")
 
         guard let pipeline else {
             throw TranscriptionError.modelUnavailable("WhisperKit pipeline failed to load")

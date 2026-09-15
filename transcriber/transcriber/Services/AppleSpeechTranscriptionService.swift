@@ -29,6 +29,7 @@ nonisolated final class AppleSpeechTranscriptionService: TranscriptionService {
         guard let locale = await supportedLocale() else {
             return .unavailable(reason: "\(requestedLocale.identifier) isn't a supported SpeechTranscriber locale.")
         }
+        try? await reserve(locale: locale)
         switch await AssetInventory.status(forModules: [makeTranscriber(locale: locale)]) {
         case .installed:
             return .ready
@@ -42,11 +43,19 @@ nonisolated final class AppleSpeechTranscriptionService: TranscriptionService {
     }
 
     func prepare(progress: @escaping @Sendable (EngineProgress) -> Void) async throws {
+        guard SpeechTranscriber.isAvailable else {
+            throw TranscriptionError.modelUnavailable("SpeechTranscriber isn't available on this device")
+        }
         guard let locale = await supportedLocale() else {
             throw TranscriptionError.modelUnavailable("\(requestedLocale.identifier) is not supported")
         }
-        let transcriber = makeTranscriber(locale: locale)
 
+        // Reserving has to come first: AssetInventory refuses to report or
+        // install a locale's assets until the app is subscribed to it
+        // ("… is not subscribed to transcription.en").
+        try await reserve(locale: locale)
+
+        let transcriber = makeTranscriber(locale: locale)
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
             Log.apple.info("downloading speech assets for \(locale.identifier, privacy: .public)")
             progress(EngineProgress(stage: "Downloading Apple speech model", fraction: 0))
@@ -67,9 +76,20 @@ nonisolated final class AppleSpeechTranscriptionService: TranscriptionService {
             progress(EngineProgress(stage: "Downloading Apple speech model", fraction: 1))
             Log.apple.info("speech assets installed")
         }
+    }
 
-        // Reserving keeps the locale's model resident for this app.
-        _ = try? await AssetInventory.reserve(locale: locale)
+    /// Subscribes this app to `locale`'s on-device assets, freeing the oldest
+    /// reservation first if we're already at the system cap.
+    private func reserve(locale: Locale) async throws {
+        let reserved = await AssetInventory.reservedLocales
+        guard !reserved.contains(where: { $0.identifier == locale.identifier }) else { return }
+
+        if reserved.count >= AssetInventory.maximumReservedLocales, let oldest = reserved.first {
+            Log.apple.info("releasing \(oldest.identifier, privacy: .public) to make room")
+            _ = await AssetInventory.release(reservedLocale: oldest)
+        }
+        _ = try await AssetInventory.reserve(locale: locale)
+        Log.apple.info("reserved \(locale.identifier, privacy: .public)")
     }
 
     func transcribe(
