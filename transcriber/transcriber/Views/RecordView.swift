@@ -1,6 +1,6 @@
+import OSLog
 import SwiftData
 import SwiftUI
-import OSLog
 
 /// Record screen: pick a mode, capture audio, transcribe, save the note.
 struct RecordView: View {
@@ -12,6 +12,11 @@ struct RecordView: View {
     @State private var engine: TranscriptionEngine = .apple
     @State private var readiness: EngineReadiness?
     @State private var permissionDenied = false
+
+    /// Set once recording stops and cleared once the note is saved or discarded.
+    /// Keeping it around is what stops a failed transcription from either losing
+    /// the recording or leaving an orphaned file in Documents.
+    @State private var pendingAudio: PendingRecording?
 
     var body: some View {
         NavigationStack {
@@ -43,12 +48,8 @@ struct RecordView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        recorder.cancel()
-                        runner.cancel()
-                        dismiss()
-                    }
-                    .disabled(runner.isRunning)
+                    Button("Cancel", role: .cancel) { cancelEverything() }
+                        .disabled(runner.isRunning)
                 }
             }
             .task(id: engine) { await refreshReadiness() }
@@ -115,13 +116,19 @@ struct RecordView: View {
                     .font(.system(size: 60))
                     .foregroundStyle(engine.tint)
             }
-            Text(recorder.elapsed.clockString)
+            Text((pendingAudio?.duration ?? recorder.elapsed).clockString)
                 .font(.system(.largeTitle, design: .monospaced))
                 .contentTransition(.numericText())
-            Text(recorder.isRecording ? "Recording at 16 kHz mono" : "Ready")
+            Text(statusLine)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var statusLine: String {
+        if recorder.isRecording { return "Recording at 16 kHz mono" }
+        if pendingAudio != nil { return "Recording kept — nothing has been saved yet" }
+        return "Ready"
     }
 
     private var transcribingState: some View {
@@ -144,9 +151,9 @@ struct RecordView: View {
     @ViewBuilder
     private var controls: some View {
         if runner.isRunning {
-            Text("Keep the app open while this finishes.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Button("Cancel transcription", role: .destructive) { runner.cancel() }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
         } else if recorder.isRecording {
             Button {
                 Task { await stopAndTranscribe() }
@@ -157,6 +164,23 @@ struct RecordView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .tint(.red)
+        } else if let pending = pendingAudio {
+            // Transcription failed or was cancelled; don't throw the audio away.
+            VStack(spacing: 12) {
+                Button {
+                    Task { await transcribe(pending) }
+                } label: {
+                    Label("Try again with \(engine.shortName)", systemImage: "arrow.clockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(isEngineUnavailable)
+
+                Button("Save audio without a transcript") { save(pending, outcome: nil) }
+                Button("Discard recording", role: .destructive) { discardPending() }
+                    .font(.footnote)
+            }
         } else {
             Button {
                 Task { await startRecording() }
@@ -191,8 +215,6 @@ struct RecordView: View {
         do {
             _ = try recorder.start()
         } catch {
-            runner.cancel()
-            permissionDenied = false
             Log.recording.error("start failed: \(error.localizedDescription, privacy: .public)")
         }
     }
@@ -202,25 +224,60 @@ struct RecordView: View {
             Log.recording.error("nothing captured")
             return
         }
-        let duration = AudioStore.duration(of: url)
-        guard let outcome = await runner.run(engine: engine, audioURL: url) else { return }
+        let pending = PendingRecording(url: url, duration: AudioStore.duration(of: url))
+        pendingAudio = pending
+        await transcribe(pending)
+    }
 
+    private func transcribe(_ pending: PendingRecording) async {
+        guard let outcome = await runner.run(engine: engine, audioURL: pending.url) else { return }
+        save(pending, outcome: outcome)
+    }
+
+    private func save(_ pending: PendingRecording, outcome: TranscriptionOutcome?) {
         let note = Note(
-            title: outcome.derivedTitle,
-            summary: outcome.derivedSummary,
-            audioFileName: url.lastPathComponent,
-            durationSeconds: duration,
+            title: outcome?.derivedTitle ?? "Untitled recording",
+            summary: outcome?.derivedSummary ?? "",
+            audioFileName: pending.url.lastPathComponent,
+            durationSeconds: pending.duration,
             primaryEngine: engine
         )
-        let run = outcome.makeRun()
-        note.runs.append(run)
+        if let outcome {
+            note.runs.append(outcome.makeRun())
+        }
         context.insert(note)
         do {
             try context.save()
-            Log.store.info("saved note \(note.id, privacy: .public) via \(engine.rawValue, privacy: .public)")
+            Log.store.info(
+                "saved note \(note.id, privacy: .public) via \(engine.rawValue, privacy: .public), transcript=\(outcome != nil, privacy: .public)"
+            )
         } catch {
             Log.store.error("save failed: \(error.localizedDescription, privacy: .public)")
         }
+        pendingAudio = nil
         dismiss()
     }
+
+    private func discardPending() {
+        if let pending = pendingAudio {
+            try? FileManager.default.removeItem(at: pending.url)
+        }
+        pendingAudio = nil
+        dismiss()
+    }
+
+    private func cancelEverything() {
+        recorder.cancel()
+        runner.cancel()
+        if pendingAudio != nil {
+            discardPending()
+        } else {
+            dismiss()
+        }
+    }
+}
+
+private struct PendingRecording {
+    let url: URL
+    let duration: Double
 }

@@ -76,11 +76,37 @@ nonisolated final class AppleSpeechTranscriptionService: TranscriptionService {
         audioURL: URL,
         progress: @escaping @Sendable (EngineProgress) -> Void
     ) async throws -> TranscriptionOutcome {
+        // One timeline across prepare + transcribe, so a first-run model
+        // download shows up as its own stage instead of silently inflating the
+        // latency we compare engines on.
         let timeline = StageTimeline(label: "apple", logger: Log.apple)
-
         try await prepare(progress: progress)
         timeline.mark("model ready")
 
+        do {
+            return try await analyze(audioURL: audioURL, progress: progress, timeline: timeline)
+        } catch {
+            // On-device transcription generally doesn't need speech-recognition
+            // authorization, so we don't prompt up front. If the system says
+            // otherwise, ask once and retry rather than failing the recording.
+            guard SFSpeechRecognizer.authorizationStatus() == .notDetermined else { throw error }
+            Log.apple.info("retrying after requesting speech authorization")
+            _ = await Self.requestAuthorization()
+            return try await analyze(audioURL: audioURL, progress: progress, timeline: timeline)
+        }
+    }
+
+    private static func requestAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
+        }
+    }
+
+    private func analyze(
+        audioURL: URL,
+        progress: @escaping @Sendable (EngineProgress) -> Void,
+        timeline: StageTimeline
+    ) async throws -> TranscriptionOutcome {
         guard let locale = await supportedLocale() else {
             throw TranscriptionError.modelUnavailable("\(requestedLocale.identifier) is not supported")
         }
@@ -120,7 +146,7 @@ nonisolated final class AppleSpeechTranscriptionService: TranscriptionService {
         let text = String(attributed.characters).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw TranscriptionError.emptyTranscript }
 
-        let outcome = TranscriptionOutcome(
+        return TranscriptionOutcome(
             engine: .apple,
             modelName: await modelName,
             rawTranscript: text,
@@ -131,7 +157,6 @@ nonisolated final class AppleSpeechTranscriptionService: TranscriptionService {
             latencyMs: timeline.totalMilliseconds,
             stages: timeline.finish()
         )
-        return outcome
     }
 
     // MARK: - Helpers

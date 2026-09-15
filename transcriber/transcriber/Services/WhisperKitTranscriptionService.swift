@@ -57,8 +57,14 @@ actor WhisperKitTranscriptionService: TranscriptionService {
     }
 
     func prepare(progress: @escaping @Sendable (EngineProgress) -> Void) async throws {
+        try await prepare(progress: progress, timeline: nil)
+    }
+
+    private func prepare(
+        progress: @escaping @Sendable (EngineProgress) -> Void,
+        timeline: StageTimeline?
+    ) async throws {
         if pipeline != nil { return }
-        let timeline = StageTimeline(label: "whisper.prepare", logger: Log.whisper)
 
         if !isModelDownloaded {
             let size = Self.approximateSize(for: variant).map { " (\($0))" } ?? ""
@@ -76,7 +82,7 @@ actor WhisperKitTranscriptionService: TranscriptionService {
                     ))
                 }
             )
-            timeline.mark("download")
+            timeline?.mark("download")
         }
 
         progress(EngineProgress(stage: "Loading Whisper model"))
@@ -96,8 +102,7 @@ actor WhisperKitTranscriptionService: TranscriptionService {
         } catch {
             throw TranscriptionError.modelUnavailable(error.localizedDescription)
         }
-        timeline.mark("load")
-        _ = timeline.finish()
+        timeline?.mark("load")
     }
 
     func transcribe(
@@ -106,7 +111,7 @@ actor WhisperKitTranscriptionService: TranscriptionService {
     ) async throws -> TranscriptionOutcome {
         let timeline = StageTimeline(label: "whisper", logger: Log.whisper)
 
-        try await prepare(progress: progress)
+        try await prepare(progress: progress, timeline: timeline)
         timeline.mark("model ready")
 
         guard let pipeline else {
