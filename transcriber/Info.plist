@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Transcriber records audio so it can turn your voice notes into text.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Transcriber uses on-device speech recognition to turn your recordings into text.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- POC only: lets you point the app at a local uvicorn server over http. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+</dict>
+</plist>
