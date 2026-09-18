@@ -6,7 +6,7 @@ import OSLog
 /// Every transcription path records a `StageTimeline` so the UI (and Console.app)
 /// can show where the wall-clock time actually went.
 nonisolated enum Log {
-    static let subsystem = "com.gotham.transcriber"
+    static let subsystem = "com.expandlabs.transcriber"
 
     static let recording = Logger(subsystem: subsystem, category: "recording")
     static let apple = Logger(subsystem: subsystem, category: "engine.apple")

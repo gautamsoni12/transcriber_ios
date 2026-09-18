@@ -6,7 +6,7 @@ nonisolated final class NetworkMonitor: @unchecked Sendable {
     static let shared = NetworkMonitor()
 
     private let monitor = NWPathMonitor()
-    private let queue = DispatchQueue(label: "com.gotham.transcriber.network")
+    private let queue = DispatchQueue(label: "com.expandlabs.transcriber.network")
     private let lock = NSLock()
     private var _isOnline = true
 

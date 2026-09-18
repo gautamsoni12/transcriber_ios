@@ -78,7 +78,7 @@ Every run records model name, latency, word count, per-stage timings, and
 confidence where the engine exposes it (Apple's `transcriptionConfidence`
 attribute, Whisper's segment log-probabilities; the Claude polish pass has no
 confidence to report). The note detail and compare screens show all of it, and
-the same timings go to `os_log` under the `com.gotham.transcriber` subsystem.
+the same timings go to `os_log` under the `com.expandlabs.transcriber` subsystem.
 
 ## Compare view
 
@@ -106,10 +106,10 @@ engine and prints the transcript, stage timings, confidence, and agreement
 against the known text:
 
 ```bash
-xcrun simctl launch --console-pty booted com.gotham.transcriber --selftest whisper
+xcrun simctl launch --console-pty booted com.expandlabs.transcriber --selftest whisper
 
 # Cloud/Auto can be pointed at a backend without going through Settings:
-xcrun simctl launch --console-pty booted com.gotham.transcriber --selftest cloud \
+xcrun simctl launch --console-pty booted com.expandlabs.transcriber --selftest cloud \
   --backend http://localhost:8000 --api-key "$API_KEY"
 ```
 

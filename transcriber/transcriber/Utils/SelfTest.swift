@@ -7,7 +7,7 @@ import OSLog
 /// The simulator can't feed the microphone, so this runs a bundled speech sample
 /// through a chosen engine and prints the transcript and metrics:
 ///
-///     xcrun simctl launch <device> com.gotham.transcriber --selftest whisper
+///     xcrun simctl launch <device> com.expandlabs.transcriber --selftest whisper
 ///
 /// Bundled sample text:
 /// "Let's ship the transcriber demo on Friday. I still need to test the compare

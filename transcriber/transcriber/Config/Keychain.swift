@@ -41,7 +41,7 @@ nonisolated enum Keychain {
     private static func baseQuery(account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "com.gotham.transcriber.config",
+            kSecAttrService as String: "com.expandlabs.transcriber.config",
             kSecAttrAccount as String: account,
         ]
     }
