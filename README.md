@@ -59,6 +59,16 @@ screen, or pre-seed first launch by copying
 `transcriber/transcriber/Resources/Config.example.plist` to `Config.plist`
 (gitignored) and filling it in. The API key lands in the Keychain either way.
 
+The deployed backend is:
+
+```
+https://transcriber-backend-226858186002.us-central1.run.app
+```
+
+Its `API_KEY` is on the Cloud Run service under **Containers → Variables &
+Secrets**. Don't commit it — `Config.plist` is gitignored for that reason, and
+anything in it is extractable from a built IPA.
+
 The Cloud mode is optional — Apple, Whisper and Auto all work with no backend at
 all.
 

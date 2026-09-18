@@ -3,9 +3,15 @@
 <plist version="1.0">
 <dict>
 	<!-- Copy to Config.plist (gitignored) to pre-seed the app on first launch.
-	     Both values can also be typed into the in-app Settings screen. -->
+	     Both values can also be typed into the in-app Settings screen.
+
+	     Note that anything here is compiled into the app bundle and can be
+	     extracted from an IPA, so only use a key you're willing to rotate. -->
 	<key>BackendBaseURL</key>
-	<string>http://localhost:8000</string>
+	<string>https://transcriber-backend-226858186002.us-central1.run.app</string>
+
+	<!-- Deliberately blank: never commit a real key. Read it off the Cloud Run
+	     service (Containers -> Variables & Secrets -> API_KEY). -->
 	<key>BackendAPIKey</key>
 	<string></string>
 </dict>
