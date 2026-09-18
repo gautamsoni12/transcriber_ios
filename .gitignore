@@ -12,7 +12,10 @@ xcuserdata/
 
 # Secrets — never commit real config
 transcriber/transcriber/Resources/Config.plist
-transcriber_backend/.env
+
+# The backend is its own repository now; checking it out here is optional.
+# See https://github.com/gautamsoni12/transcriber_backend
+transcriber_backend/
 
 # Python
 __pycache__/

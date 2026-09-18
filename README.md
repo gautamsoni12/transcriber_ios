@@ -4,9 +4,12 @@ POC voice-notes app: record audio, transcribe it four different ways, and
 compare what the engines actually produce.
 
 ```
-transcriber/          SwiftUI app (iOS 26+, SwiftData, SPM)
-transcriber_backend/  FastAPI service (Python 3.12, Cloud Run)
+transcriber/   SwiftUI app (iOS 26+, SwiftData, SPM)
 ```
+
+The FastAPI service behind the Cloud and Auto modes lives in its own repository:
+[gautamsoni12/transcriber_backend](https://github.com/gautamsoni12/transcriber_backend). Clone it alongside this one
+if you want to run the full stack locally.
 
 ## The four modes
 
@@ -35,8 +38,9 @@ transcriber/transcriber/
 
 ## Getting started
 
-**Backend** — see [transcriber_backend/README.md](transcriber_backend/README.md)
-for local `uvicorn` and Cloud Run deploy.
+**Backend** — see the [backend repo](https://github.com/gautamsoni12/transcriber_backend) for local `uvicorn` and
+Cloud Run deploy. The app works without it: Apple, Whisper and Auto are all
+fully offline.
 
 **App** — open `transcriber/transcriber.xcodeproj` and run. Xcode resolves
 WhisperKit on first build.
@@ -110,19 +114,8 @@ Where each engine stands:
 
 ### Backend
 
-```bash
-cd transcriber_backend && .venv/bin/python -m pytest tests -q
-```
-
-The container was also checked offline, which is what proves the Dockerfile's
-baked-in weights work on a cold Cloud Run start:
-
-```bash
-docker build -t transcriber-backend:local .
-docker run --rm --network none -v "$PWD/sample.wav:/tmp/sample.wav:ro" \
-  transcriber-backend:local \
-  python -c "from app.asr import transcribe_file; print(transcribe_file('/tmp/sample.wav').text)"
-```
+Its tests and the offline container check live in the
+[backend repo](https://github.com/gautamsoni12/transcriber_backend).
 
 ## Manual test pass
 
